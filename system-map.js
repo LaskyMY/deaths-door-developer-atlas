@@ -172,6 +172,7 @@ async function boot(){
     edges.forEach(e=>{
       if(!kindVisible(e))return;
       if(!visNodes.has(e.source)||!visNodes.has(e.target))return;
+      if(state.sel&&state.isolate&&state.depth===1&&e.source!==state.sel&&e.target!==state.sel)return;
       visEdges.push(e);
     });
     return {nodes:visNodes,edges:visEdges};
@@ -218,7 +219,7 @@ async function boot(){
     state.ty=(state.h/state.scale-bh)/2-b.minY;
     requestDraw();
   }
-  function fitAll(){const ids=new Set(nodes.map(n=>n.id));fitBounds(boundsOfNodes(ids));}
+  function fitAll(){if(state.isolate){state.isolate=false;refreshVis();renderLeft();}const ids=new Set(nodes.map(n=>n.id));fitBounds(boundsOfNodes(ids));}
   function fitVisible(){const ids=new Set(vis.nodes);const b=boundsOfNodes(ids);if(b)fitBounds(b);else fitAll();}
   function resetView(){state.scale=0.5;state.tx=20;state.ty=20;requestDraw();}
   function zoomAt(factor,mx,my){
@@ -231,6 +232,7 @@ async function boot(){
   }
   function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
   function draw(){
+    state.drawnEdges=[];
     const {dpr,scale:t,sel,selEdge,hover}=state;
     ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.clearRect(0,0,state.w,state.h);
@@ -293,6 +295,7 @@ async function boot(){
       const pa=worldToScreen(ax,ay),pb=worldToScreen(bx,by);
       const related=sel&&(e.source===sel||e.target===sel);
       if(sel&&!related&&state.selEdge!==e.id&&!state.isolate)return;
+      state.drawnEdges.push(e);
       const isSelEdge=selEdge===e.id;
       const isHov=state.hoverEdge===e.id;
       ctx.strokeStyle=isSelEdge?'#ffe066':related?'rgba(255,224,102,0.55)':KIND_COLORS[e.kind]||'#5cc7d6';
@@ -383,7 +386,7 @@ async function boot(){
     }
     // edge hit
     let be=null,bd=Infinity;
-    for(const e of vis.edges){
+    for(const e of state.drawnEdges||[]){
       const a=nodeById.get(e.source),b=nodeById.get(e.target);if(!a||!b)continue;
       const ax=a.x+NODE_W/2,ay=a.y+NODE_H/2,bx=b.x+NODE_W/2,by=b.y+NODE_H/2;
       const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy;
@@ -610,7 +613,7 @@ async function boot(){
     };
     right.innerHTML=`<div class="ins"><h2>${esc(n.name||n.id)}</h2>
     <div class="sub">${esc(n.path||'')}</div>
-    <div class="kv"><span>类别</span><div><span class="sw" style="display:inline-block;background:${esc(ccolor(n.category))};margin-right:4px"></span>${esc(clabel(n.category))}</div></div>
+    <div class="kv"><span>类别</span><div><span class="sw" style="display:inline-block;background:${esc(ccolor(n.category))};margin-right:4px"></span>${esc(clabel(n.category))}</div></div><p class="sub">${esc(n.categoryBasis||'职责分类供导航')}。右侧列出该节点全部静态关联；画布筛选不删除原始记录。</p>
     <div class="kw">${uniqKws.map(k=>`<span class="kw">${esc(k)}</span>`).join('')}</div>
     ${a.title?`<div class="tw"><strong>${esc(a.title)}</strong>${a.summary?'\n'+esc(a.summary):''}</div>`:(a.summary?`<div class="tw">${esc(a.summary)}</div>`:'')}
     ${a.responsibility&&a.responsibility.length?`<h3 style="font-size:11px;color:#7d8ba6;margin:8px 0 3px">职责</h3><ul>${a.responsibility.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
